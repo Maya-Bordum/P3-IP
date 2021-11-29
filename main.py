@@ -83,9 +83,10 @@ for image in Pictures:
     cX = int(M["m10"] / M["m00"]) 
     cY = int(M["m01"] / M["m00"])
     # put text and highlight the center
-    cv2.circle(erodeImage, (cX, cY), 5, (150, 150, 255), -1) #Inserting the center circle
-    cv2.putText(erodeImage, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 255), 2) #Inserting text over center circle
-    showPicture(erodeImage) #Showing image with center circle and text
+    imageWithCentroid = erodeImage.copy()
+    cv2.circle(imageWithCentroid, (cX, cY), 5, (150, 150, 255), -1) #Inserting the center circle
+    cv2.putText(imageWithCentroid, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 255), 2) #Inserting text over center circle
+    showPicture(imageWithCentroid) #Showing image with center circle and text
 
 
     
