@@ -3,6 +3,7 @@ import numpy as np #Importing numpy for arrays and more
 import matplotlib as plt #Importing for showing images in plot
 import copy #Importing to copy images to variables
 import glob #Importing to acces files in the computer memory
+import math #Importing math for calculations
 
 
 #Function for showing images
@@ -29,6 +30,8 @@ scale_percent = 25
 #Creating kernel for OpenCV functions
 kernel = np.array([[0,0,1,0,0],[0,1,1,1,0],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]],np.uint8)
 
+#Count variable
+count = 0
 
 
 #Loading an array of pictures
@@ -79,12 +82,31 @@ for image in Pictures:
 
     # calculate moments of binary image
     M = cv2.moments(mask) #Calculating moments (Read openCV page) from the picture with white blobs
+
+    #Copying cX and cY from last loop
+    if count > 0:
+        lastX = cX
+        lastY = cY
+
     # calculate x,y coordinate of center by using moments
     cX = int(M["m10"] / M["m00"]) 
     cY = int(M["m01"] / M["m00"])
     # put text and highlight the center
     imageWithCentroid = erodeImage.copy()
     cv2.circle(imageWithCentroid, (cX, cY), 5, (150, 150, 255), -1) #Inserting the center circle
+
+    #Printing the two points for debugging
+    print(cX)
+    print(cY)
+
+
+    if count > 0:
+        pointDistance = math.sqrt(((cX-lastX)**2)+((cY-lastY)**2))
+        print(pointDistance)
+
+    count += 1
+
+
     cv2.putText(imageWithCentroid, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 255), 2) #Inserting text over center circle
     showPicture(imageWithCentroid) #Showing image with center circle and text
 
