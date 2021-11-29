@@ -33,7 +33,7 @@ kernel = np.array([[0,0,1,0,0],[0,1,1,1,0],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]],
 
 #Loading an array of pictures
 Pictures = [] #Creating an array
-files = glob.glob ("\\pictures\\*.jpg") #Adding dirrectory to files
+files = glob.glob ("pictures\\*.jpg") #Adding dirrectory to files
 
 #Loop for loading files from directory to the Pictures array
 for myFile in files:
