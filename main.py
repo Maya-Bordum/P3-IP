@@ -4,6 +4,9 @@ import matplotlib as plt #Importing for showing images in plot
 import copy #Importing to copy images to variables
 import glob #Importing to acces files in the computer memory
 import math #Importing math for calculations
+import xlwt #Importing to create excel 
+from xlwt import Workbook
+import imutils
 
 
 #Function for showing images
@@ -33,6 +36,10 @@ kernel = np.array([[0,0,1,0,0],[0,1,1,1,0],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]],
 #Count variable
 count = 0
 
+#Creating workbook with sheet
+wb = Workbook() #Creating workbook
+frontSheet = wb.add_sheet("Data Sheet")
+
 
 #Loading an array of pictures
 Pictures = [] #Creating an array
@@ -50,38 +57,22 @@ for image in Pictures:
     height = int(image.shape[0] * scale_percent / 100) #calculate the 50 percent of original dimension height
     dsize = (width, height) #Width and height together
     image = cv2.resize(image, dsize)#Resize image
-
-    showPicture(image) #Showing RGB image for debugging
+    #showPicture(image) #Showing RGB image for debugging
     
     #Converting to HSV
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV) #Converting normal RGB image to HSV image
-    showPicture(hsv) #Showing image for debugging
+    #showPicture(hsv) #Showing image for debugging
 
     #Doing color detection
     mask = cv2.inRange(hsv, lower_range, upper_range) #Making a mask with color detection using our upper and lower range HSV values
-    showPicture(mask) #Showing image for debugging
+    #showPicture(mask) #Showing image for debugging
 
-    #Making blobs black
-    maskBlack = cv2.bitwise_not(mask) #Inverting the colors of the binarized image
-    showPicture(maskBlack) #Showing picture for debugging
-
-    #Eroding image
-    erodeImage = cv2.erode(maskBlack, kernel, iterations=2) #Eroding image with the kernel created in variables
-    showPicture(erodeImage) #Showing image for debugging
-
-    #Setting parameters of the blob detection
-    params = cv2.SimpleBlobDetector_Params() #Creating parameter object for the blob detector
-    params.filterByArea = True #Making the parameter of using area true
-    params.minArea = 50 #Setting minimum area of blob for not detecting smaller mistakes
- 
-    #Doing blob detection
-    detector = cv2.SimpleBlobDetector_create(params) #Creating the blob detector with our parameters
-    keypoints = detector.detect(erodeImage) #Using the detector on the eroded image
-    image_keypoints = cv2.drawKeypoints(erodeImage, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS) #Drawing the circles around the detected blobs
-    showPicture(image_keypoints) #Showing the blob detected picture
+    #Dilate white blobs
+    dilateImage = cv2.dilate(mask,kernel,iterations=2)
+    #showPicture(dilateImage)
 
     # calculate moments of binary image
-    M = cv2.moments(mask) #Calculating moments (Read openCV page) from the picture with white blobs
+    M = cv2.moments(dilateImage) #Calculating moments (Read openCV page) from the picture with white blobs
 
     #Copying cX and cY from last loop
     if count > 0:
@@ -91,24 +82,60 @@ for image in Pictures:
     # calculate x,y coordinate of center by using moments
     cX = int(M["m10"] / M["m00"]) 
     cY = int(M["m01"] / M["m00"])
-    # put text and highlight the center
-    imageWithCentroid = erodeImage.copy()
-    cv2.circle(imageWithCentroid, (cX, cY), 5, (150, 150, 255), -1) #Inserting the center circle
+
+    # put text, highlight the center and calculate distance between two points
+    imageWithCentroid = image.copy()
+    cv2.circle(imageWithCentroid, (cX, cY), 5, (0, 0, 0), -1) #Inserting the center circle
 
     #Printing the two points for debugging
     print(cX)
     print(cY)
 
+    #Setting up excel
+    if count == 0:
+        #Writing titles in the worksheet
+        frontSheet.write(count,count, 'Image Name') #Name title
+        frontSheet.write(count,1,'X') #Coordinate X title
+        frontSheet.write(count,2,'Y') #Coordinate Y title
+        frontSheet.write(count,3,'Distance point last image') #Distance between points title
+        frontSheet.write(count+1,0, 'pic' + str(count)) #First image name
+        frontSheet.write(count+1,1, cX) #First image X
+        frontSheet.write(count+1,2, cY) #First image Y
+        frontSheet.write(count+1,3, 'NoDistance') #No distance from first picture
 
+    #Measuring the distance between the two points and adding to excel
     if count > 0:
-        pointDistance = math.sqrt(((cX-lastX)**2)+((cY-lastY)**2))
-        print(pointDistance)
+        pointDistance = math.sqrt(((cX-lastX)**2)+((cY-lastY)**2)) #Formula for measuring distance between points
+        print(pointDistance) #Printing distance for debugging
+        frontSheet.write(count+1,0, 'pic' + str(count)) #Image name
+        frontSheet.write(count+1,1, cX) #Image X
+        frontSheet.write(count+1,2, cY) #Image Z
+        frontSheet.write(count+1,3, pointDistance) #Point distance
 
+    cnts = cv2.findContours(dilateImage.copy(), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    
+    # loop over the contours
+    for c in cnts:
+	    # compute the center of the contour
+	    Q = cv2.moments(c)
+	    cAX = int(Q["m10"] / Q["m00"])
+	    cAY = int(Q["m01"] / Q["m00"])
+	    # draw the contour and center of the shape on the image
+	    cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
+	    cv2.circle(image, (cAX, cAY), 7, (255, 255, 255), -1)
+	    cv2.putText(image, "center", (cAX - 20, cAY - 20),
+		cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
+    showPicture(image)
+
+    #Increaing count to know which loop we are in 
     count += 1
 
-
-    cv2.putText(imageWithCentroid, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 255), 2) #Inserting text over center circle
+    cv2.putText(imageWithCentroid, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2) #Inserting text over center circle
     showPicture(imageWithCentroid) #Showing image with center circle and text
+
+wb.save('Distance between points.xls')
 
 
     
