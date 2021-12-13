@@ -7,8 +7,11 @@ import math #Importing math for calculations
 import xlwt #Importing to create excel 
 from xlwt import Workbook
 import imutils
+import os.path
+import imageProcessing
+import data
 
-
+print(cv2.__version__)#Printing open CV version for debugging
 #Function for showing images
 def showPicture(pic):
     while True:
@@ -23,12 +26,16 @@ def showPicture(pic):
 
 #Variables
 
-#Variables for upper and lower range in color detection Hue, Saturation and Value
-lower_range = np.array([15,80,80])
-upper_range = np.array([40,255,255])
+#Variables for upper and lower range in color detection for Joint image
+lower_rangeJ = np.array([0, 10,0], np.uint8)
+upper_rangeJ = np.array([5,255,255], np.uint8)
+
+#Variables for upper and lower range in color detection for RGB image
+lower_rangeR = np.array([0,60,50])
+upper_rangeR = np.array([40,255,255])
 
 #percent by which the image is resized
-scale_percent = 25
+scale_percent = 75
 
 #Creating kernel for OpenCV functions
 kernel = np.array([[0,0,1,0,0],[0,1,1,1,0],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]],np.uint8)
@@ -42,101 +49,109 @@ frontSheet = wb.add_sheet("Data Sheet")
 
 
 #Loading an array of pictures
-Pictures = [] #Creating an array
-files = glob.glob ("pictures\\*.jpg") #Adding dirrectory to files
+ImageRGB = [] #Creating an array for images from RGB picture
+ImageJoint = [] #Creating an array for images with joints
+BlobArea = [] #Creating an array for images to measure area of blob
+filesRGB = glob.glob ("pictures\\rgb\\*.png") #Adding dirrectory to files from RGB camera
+filesJoint = glob.glob ("pictures\\joints\\*.png") #Adding directory to files with joints
+filesArea = glob.glob ("pictures\\area\\*.png")
 
-#Loop for loading files from directory to the Pictures array
-for myFile in files:
-    image = cv2.imread(myFile) #Reading file as cv2 image
-    Pictures.append(image) #Adding the read image to Pictures Array
+#Array variables
+distances = []
+accumulated = 0 
 
+
+
+#Loop for loading files from RGB directory to the ImageRGB array
+for myFile in filesRGB:
+    imageR = cv2.imread(myFile) #Reading file as cv2 image
+    ImageRGB.append(imageR) #Adding the read image to ImageRGB Array
+
+#Loop for loading files from Joints directory to the ImageJoint array
+for myFile in filesJoint:
+    imageJ = cv2.imread(myFile) #Reading file as cv2 image
+    ImageJoint.append(imageJ) #Adding the read image to ImageJoint Array
+
+#Loop for loading files from area directory to the BlobArea array
+for myFile in filesArea:
+    imageA = cv2.imread(myFile) #Reading file as cv2 image
+    BlobArea.append(imageA) #Adding the read image to the BlobArea Array
+
+#Loop for getting radius and accuracy definition
+for imageA in BlobArea:
+    areaHsv = imageProcessing.hsvConvert(imageA)
+    areaMask = imageProcessing.colorDetection(areaHsv, lower_rangeR, upper_rangeR)
+    contourA = imageProcessing.findContours(areaMask)
+    distances.append(imageProcessing.findRadius(contourA))
+
+#Accumulating radiuses
+for distance in distances:
+    i = 0
+    accumulated = accumulated + distance
+    print(distance) #Print for debugging
+    i += 1
+
+#Calculating range
+range = accumulated/len(distances)
+print(range) #Print for debugging
     
-for image in Pictures:
-    #Resizing image
-    width = int(image.shape[1] * scale_percent / 100) #calculate the 50 percent of original dimension widht
-    height = int(image.shape[0] * scale_percent / 100) #calculate the 50 percent of original dimension height
-    dsize = (width, height) #Width and height together
-    image = cv2.resize(image, dsize)#Resize image
-    #showPicture(image) #Showing RGB image for debugging
-    
-    #Converting to HSV
-    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV) #Converting normal RGB image to HSV image
-    #showPicture(hsv) #Showing image for debugging
+for imageJ in ImageJoint:
+    #Resizing both images
+    imageJ = imageProcessing.resizeImage(imageJ, scale_percent)
+    imageR = imageProcessing.resizeImage(ImageRGB[count], scale_percent)
+
+    #Creating blank canvas for drawing data
+    blankCanvas = imageProcessing.backGround(imageJ)
+
+    #Flipping the RGB image
+    imageR = imageProcessing.flipImage(imageR)
+
+    #Converting RGB image to HSV
+    imageRHSV = imageProcessing.hsvConvert(imageR)
+    imageJHSV = imageProcessing.hsvConvert(imageJ)
 
     #Doing color detection
-    mask = cv2.inRange(hsv, lower_range, upper_range) #Making a mask with color detection using our upper and lower range HSV values
-    #showPicture(mask) #Showing image for debugging
-
-    #Dilate white blobs
-    dilateImage = cv2.dilate(mask,kernel,iterations=2)
-    #showPicture(dilateImage)
-
-    # calculate moments of binary image
-    M = cv2.moments(dilateImage) #Calculating moments (Read openCV page) from the picture with white blobs
-
-    #Copying cX and cY from last loop
-    if count > 0:
-        lastX = cX
-        lastY = cY
-
-    # calculate x,y coordinate of center by using moments
-    cX = int(M["m10"] / M["m00"]) 
-    cY = int(M["m01"] / M["m00"])
-
-    # put text, highlight the center and calculate distance between two points
-    imageWithCentroid = image.copy()
-    cv2.circle(imageWithCentroid, (cX, cY), 5, (0, 0, 0), -1) #Inserting the center circle
-
-    #Printing the two points for debugging
-    print(cX)
-    print(cY)
-
-    #Setting up excel
-    if count == 0:
-        #Writing titles in the worksheet
-        frontSheet.write(count,count, 'Image Name') #Name title
-        frontSheet.write(count,1,'X') #Coordinate X title
-        frontSheet.write(count,2,'Y') #Coordinate Y title
-        frontSheet.write(count,3,'Distance point last image') #Distance between points title
-        frontSheet.write(count+1,0, 'pic' + str(count)) #First image name
-        frontSheet.write(count+1,1, cX) #First image X
-        frontSheet.write(count+1,2, cY) #First image Y
-        frontSheet.write(count+1,3, 'NoDistance') #No distance from first picture
-
-    #Measuring the distance between the two points and adding to excel
-    if count > 0:
-        pointDistance = math.sqrt(((cX-lastX)**2)+((cY-lastY)**2)) #Formula for measuring distance between points
-        print(pointDistance) #Printing distance for debugging
-        frontSheet.write(count+1,0, 'pic' + str(count)) #Image name
-        frontSheet.write(count+1,1, cX) #Image X
-        frontSheet.write(count+1,2, cY) #Image Z
-        frontSheet.write(count+1,3, pointDistance) #Point distance
-
-    cnts = cv2.findContours(dilateImage.copy(), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-    cnts = imutils.grab_contours(cnts)
+    imageJMask = imageProcessing.colorDetection(imageJHSV, lower_rangeJ, upper_rangeJ)
+    imageRMask = imageProcessing.colorDetection(imageRHSV, lower_rangeR, upper_rangeR)
     
-    # loop over the contours
-    for c in cnts:
-	    # compute the center of the contour
-	    Q = cv2.moments(c)
-	    cAX = int(Q["m10"] / Q["m00"])
-	    cAY = int(Q["m01"] / Q["m00"])
-	    # draw the contour and center of the shape on the image
-	    cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
-	    cv2.circle(image, (cAX, cAY), 7, (255, 255, 255), -1)
-	    cv2.putText(image, "center", (cAX - 20, cAY - 20),
-		cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    #Dilate white blobs
+    imageJMask = imageProcessing.dilateImage(imageJMask, kernel, 2)
+    imageRMask = imageProcessing.dilateImage(imageRMask, kernel, 2)
+    
+    #Find contours
+    contourJ = imageProcessing.findContours(imageJMask)
+    contourR = imageProcessing.findContours(imageRMask)
 
-    showPicture(image)
+    #Draw contours
+    cv2.drawContours(imageJ, contourJ, -1, (0, 255, 0), 2, cv2.LINE_AA)
+    cv2.drawContours(imageR, contourR, -1, (0, 255, 0), 2, cv2.LINE_AA)
+    cv2.drawContours(blankCanvas, contourJ, -1, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.drawContours(blankCanvas, contourR, -1, (255, 255, 255), 2, cv2.LINE_AA)
 
-    #Increaing count to know which loop we are in 
+    #Contour center Joint
+    for c in contourJ:
+        M = cv2.moments(c)
+        xJ = int(M["m10"] / M["m00"])
+        yJ = int(M["m01"] / M["m00"])
+        cv2.circle(imageJ, (xJ, yJ), 7, (255, 255, 255), -1)
+        cv2.putText(imageJ, "center", (xJ - 20, yJ - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    
+    #Contour center RGB
+    for c in contourR:
+        M = cv2.moments(c)
+        xR = int(M["m10"] / M["m00"])
+        yR = int(M["m01"] / M["m00"])
+        cv2.circle(imageR, (xR, yR), 7, (255, 255, 255), -1)
+        cv2.putText(imageR, "center", (xR - 20, yR - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    
+    canvasData = imageProcessing.drawCanvas(blankCanvas,xJ,yJ,xR,yR)
+
+    data.sheetSetUp(count, frontSheet, xJ, yJ, xR, yR)
     count += 1
+    data.sheetInsert(count, frontSheet, xJ, yJ, xR, yR, range)
 
-    cv2.putText(imageWithCentroid, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2) #Inserting text over center circle
-    showPicture(imageWithCentroid) #Showing image with center circle and text
-
+    
+#Saving sheet
 wb.save('Distance between points.xls')
-
-
     
 
