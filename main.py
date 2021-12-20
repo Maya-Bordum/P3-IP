@@ -88,7 +88,9 @@ for imageA in BlobArea:
 for distance in distances:
     i = 0
     accumulated = accumulated + distance
+    print('_____')
     print(distance) #Print for debugging
+    print('_____')
     i += 1
 
 #Calculating range
@@ -145,7 +147,9 @@ for imageJ in ImageJoint:
         cv2.putText(imageR, "center", (xR - 20, yR - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     
     canvasData = imageProcessing.drawCanvas(blankCanvas,xJ,yJ,xR,yR)
-
+    showPicture(canvasData)
+    print(filesRGB[count])
+    print(filesJoint[count])
     data.sheetSetUp(count, frontSheet, xJ, yJ, xR, yR)
     count += 1
     data.sheetInsert(count, frontSheet, xJ, yJ, xR, yR, range)
